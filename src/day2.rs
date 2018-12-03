@@ -1,6 +1,8 @@
 use edit_distance::edit_distance;
 use fnv::FnvHashMap;
 
+/// Handles the line so we know if we found two or three times the same character
+/// Returns either (0,0) / (1,0) / (0,1) / (1,1)
 fn treat_line(input: &str) -> (usize, usize) {
     let mut map: FnvHashMap<char, usize> = FnvHashMap::default();
     input.chars().for_each(|a| *map.entry(a).or_insert(0) += 1);
@@ -16,6 +18,7 @@ fn treat_line(input: &str) -> (usize, usize) {
     (twos, threes)
 }
 
+/// Gets the common part of the two given &str into a String
 fn get_common(a: &str, b: &str) -> String {
     a.chars()
         .zip(b.chars())
@@ -23,6 +26,7 @@ fn get_common(a: &str, b: &str) -> String {
         .collect()
 }
 
+/// Solves part one
 #[aoc(day2, part1)]
 fn part_one(input: &str) -> usize {
     let numbers: (usize, usize) = input
@@ -32,6 +36,7 @@ fn part_one(input: &str) -> usize {
     numbers.0 * numbers.1
 }
 
+/// Solves part two
 #[aoc(day2, part2)]
 fn part_two(input: &str) -> String {
     for src in input.lines() {

@@ -1,28 +1,27 @@
 use fnv::FnvHashSet;
 
+/// Parses each line to be an i32
 #[aoc_generator(day1)]
 fn generator_input(input: &str) -> Vec<i32> {
     input.lines().map(|a| a.parse::<i32>().unwrap()).collect()
 }
 
+/// Solves part one
 #[aoc(day1, part1)]
 fn part_one(input: &[i32]) -> i32 {
     input.into_iter().sum()
 }
 
+/// Solves part two
 #[aoc(day1, part2)]
 fn part_two(input: &[i32]) -> i32 {
     let mut seen = FnvHashSet::default();
     let mut sum = 0;
     seen.insert(0);
-    let _ = input
-        .into_iter()
-        .cycle()
-        .filter(|&a| {
-            sum += a;
-            !seen.insert(sum.clone())
-        })
-        .next();
+    let _ = input.into_iter().cycle().find(|&a| {
+        sum += a;
+        !seen.insert(sum.clone())
+    });
     sum
 }
 
@@ -32,24 +31,8 @@ pub mod tests {
 
     #[test]
     fn day1_generator() {
-        // Awful formatting, thanks rustfmt I guess...
-        assert_eq!(
-            generator_input(
-                "+1
-+1
-+1"
-            ),
-            &[1, 1, 1]
-        );
-
-        assert_eq!(
-            generator_input(
-                "+1
-+1
--2"
-            ),
-            &[1, 1, -2]
-        );
+        assert_eq!(generator_input("+1\n+1\n+1"), &[1, 1, 1]);
+        assert_eq!(generator_input("+1\n+1\n-2"), &[1, 1, -2]);
     }
 
     #[test]

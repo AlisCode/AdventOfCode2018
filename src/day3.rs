@@ -2,6 +2,7 @@ use fnv::FnvHashSet;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+/// Struct that represents a Claim as described in the subject
 pub struct Claim {
     pub id: u32,
     pub coords: (u32, u32),
@@ -9,7 +10,9 @@ pub struct Claim {
 }
 
 impl Claim {
+    /// Checks if a claim contacts another
     pub fn contact(&self, other: &Self) -> bool {
+        // Basic formula to check collision between two box - adapted for the use case
         !(self.coords.0 > other.coords.0 + other.area.0 - 1
             || self.coords.0 + self.area.0 - 1 < other.coords.0
             || self.coords.1 > other.coords.1 + other.area.1 - 1
@@ -33,6 +36,7 @@ impl Claim {
 impl FromStr for Claim {
     type Err = ParseIntError;
 
+    /// Parses a claim from a &str
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let first: Vec<&str> = s.split("@").collect();
         let id = first[0].trim().replace("#", "").parse::<u32>()?;
@@ -53,6 +57,7 @@ impl FromStr for Claim {
     }
 }
 
+/// Generator that gives a list of Claims given the input
 #[aoc_generator(day3)]
 fn input_gen(input: &str) -> Vec<Claim> {
     input
@@ -61,26 +66,36 @@ fn input_gen(input: &str) -> Vec<Claim> {
         .collect()
 }
 
+/// Solves part one
 #[aoc(day3, part1)]
 fn part_one(input: &[Claim]) -> usize {
     input
-        .iter()
+        .into_iter()
+        // Flat_maps all the coordinates generated from the Claims
         .flat_map(|c| {
             input
                 .iter()
-                .filter(move |cc| cc.id != c.id)
-                .flat_map(move |cc| c.overlap(cc))
+                // If cc.id != c.id to prevent a Claim applying on itself
+                .filter_map(move |cc| {
+                    if cc.id != c.id {
+                        // Gets the overlapping coordinates between
+                        Some(c.overlap(cc))
+                    } else {
+                        None
+                    }
+                })
+                .flat_map(|i| i.into_iter())
         })
         .collect::<FnvHashSet<(u32, u32)>>()
         .len()
 }
 
+/// Solves part two
 #[aoc(day3, part2)]
 fn part_two(input: &[Claim]) -> u32 {
     let lone_claim = input
         .into_iter()
-        .filter(|c| !input.iter().any(|cc| cc.id != c.id && c.contact(cc)))
-        .next()
+        .find(|c| !input.iter().any(|cc| cc.id != c.id && c.contact(cc)))
         .expect("Could not find lone claim");
 
     lone_claim.id
