@@ -1,3 +1,4 @@
+use fnv::FnvHashSet;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
@@ -8,18 +9,24 @@ pub struct Claim {
 }
 
 impl Claim {
-    pub fn contains(&self, c: (u32, u32)) -> bool {
-        c.0 >= self.coords.0
-            && c.1 >= self.coords.1
-            && c.0 < self.coords.0 + self.area.0
-            && c.1 < self.coords.1 + self.area.1
-    }
-
     pub fn contact(&self, other: &Self) -> bool {
         !(self.coords.0 > other.coords.0 + other.area.0 - 1
             || self.coords.0 + self.area.0 - 1 < other.coords.0
             || self.coords.1 > other.coords.1 + other.area.1 - 1
             || self.coords.1 + self.area.1 - 1 < other.coords.1)
+    }
+
+    pub fn overlap(&self, other: &Self) -> impl Iterator<Item = (u32, u32)> {
+        // Calc the common rectangle
+        let x_min = self.coords.0.max(other.coords.0);
+        let x_max = (self.coords.0 + self.area.0).min(other.coords.0 + other.area.0);
+        let y_min = self.coords.1.max(other.coords.1);
+        let y_max = (self.coords.1 + self.area.1).min(other.coords.1 + other.area.1);
+
+        // Return an iterator
+        (x_min..x_max)
+            .map(move |x| (y_min..y_max).map(move |y| (x, y)))
+            .flat_map(|i| i.into_iter())
     }
 }
 
@@ -54,39 +61,24 @@ fn input_gen(input: &str) -> Vec<Claim> {
         .collect()
 }
 
-fn extract_borders(claims: &[Claim]) -> (u32, u32, u32, u32) {
-    let first = &claims[0];
-    claims.iter().fold(
-        (
-            first.coords.0,
-            first.coords.1,
-            first.coords.0 + first.area.0,
-            first.coords.1 + first.area.1,
-        ),
-        |acc, i| {
-            let x = acc.0.min(i.coords.0);
-            let y = acc.1.min(i.coords.1);
-            let x_max = acc.2.max(i.coords.0 + i.area.0);
-            let y_max = acc.3.max(i.coords.1 + i.area.1);
-            (x, y, x_max, y_max)
-        },
-    )
-}
-
 #[aoc(day3, part1)]
 fn part_one(input: &[Claim]) -> usize {
-    let squares = extract_borders(input);
-    (squares.0..=squares.2)
-        .map(|x| (squares.1..=squares.3).map(move |y| (x, y)))
-        .flat_map(|i| i.into_iter())
-        .filter(|coords| input.iter().filter(|c| c.contains(*coords)).count() >= 2)
-        .count()
+    input
+        .iter()
+        .flat_map(|c| {
+            input
+                .iter()
+                .filter(move |cc| cc.id != c.id)
+                .flat_map(move |cc| c.overlap(cc))
+        })
+        .collect::<FnvHashSet<(u32, u32)>>()
+        .len()
 }
 
 #[aoc(day3, part2)]
 fn part_two(input: &[Claim]) -> u32 {
     let lone_claim = input
-        .iter()
+        .into_iter()
         .filter(|c| !input.iter().any(|cc| cc.id != c.id && c.contact(cc)))
         .next()
         .expect("Could not find lone claim");
@@ -107,21 +99,6 @@ pub mod tests {
     }
 
     #[test]
-    fn day3_contains() {
-        let claims = input_gen("#1 @ 1,3: 4x4\n#2 @ 3,1: 4x4\n#3 @ 5,5: 2x2");
-        let borders = extract_borders(&claims);
-        assert_eq!(borders.0, 1);
-        assert_eq!(borders.1, 1);
-        assert_eq!(borders.2, 7);
-        assert_eq!(borders.3, 7);
-
-        let claim = &claims[0];
-        assert!(!claim.contains((0, 0)));
-        assert!(claim.contains((1, 3)));
-        assert!(claim.contains((4, 6)));
-    }
-
-    #[test]
     fn day3_contact() {
         let claims = input_gen("#1 @ 1,3: 4x4\n#2 @ 3,1: 4x4\n#3 @ 5,5: 2x2");
         assert!(&claims[0].contact(&claims[1]));
@@ -130,6 +107,13 @@ pub mod tests {
         assert!(!&claims[2].contact(&claims[1]));
         assert!(!&claims[0].contact(&claims[2]));
         assert!(!&claims[2].contact(&claims[0]));
+
+        let overlap: Vec<(u32, u32)> = claims[0].overlap(&claims[1]).collect();
+        assert_eq!(overlap.len(), 4);
+        assert_eq!(overlap[0], (3, 3));
+        assert_eq!(overlap[1], (3, 4));
+        assert_eq!(overlap[2], (4, 3));
+        assert_eq!(overlap[3], (4, 4));
     }
 
     #[test]
