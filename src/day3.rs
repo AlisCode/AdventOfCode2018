@@ -86,6 +86,7 @@ fn part_one(input: &[Claim]) -> usize {
                 })
                 .flat_map(|i| i.into_iter())
         })
+        // Collects as a HashSet to provide unicity
         .collect::<FnvHashSet<(u32, u32)>>()
         .len()
 }
@@ -93,6 +94,7 @@ fn part_one(input: &[Claim]) -> usize {
 /// Solves part two
 #[aoc(day3, part2)]
 fn part_two(input: &[Claim]) -> u32 {
+    // Gets the lone Claim (the one that doesnt overlap with any other Claim)
     let lone_claim = input
         .into_iter()
         .find(|c| !input.iter().any(|cc| cc.id != c.id && c.contact(cc)))
@@ -105,6 +107,7 @@ fn part_two(input: &[Claim]) -> u32 {
 pub mod tests {
     use super::*;
 
+    /// Tests the parser (FromStr implementation)
     #[test]
     fn day3_parse() {
         let claim: Claim = "#123 @ 3,2: 5x4".parse().expect("Failed to parse");
@@ -113,6 +116,7 @@ pub mod tests {
         assert_eq!(claim.area, (5, 4));
     }
 
+    /// Tests the contact between Claims
     #[test]
     fn day3_contact() {
         let claims = input_gen("#1 @ 1,3: 4x4\n#2 @ 3,1: 4x4\n#3 @ 5,5: 2x2");
@@ -131,12 +135,14 @@ pub mod tests {
         assert_eq!(overlap[3], (4, 4));
     }
 
+    /// Tests the solution for day1
     #[test]
     fn day3_part1() {
         let claims = input_gen("#1 @ 1,3: 4x4\n#2 @ 3,1: 4x4\n#3 @ 5,5: 2x2");
         assert_eq!(part_one(&claims), 4);
     }
 
+    /// Tests the solution for day2
     #[test]
     fn day3_part2() {
         let claims = input_gen("#1 @ 1,3: 4x4\n#2 @ 3,1: 4x4\n#3 @ 5,5: 2x2");
