@@ -5,12 +5,17 @@ use std::cmp::Ordering;
 use std::error::Error;
 use std::str::FromStr;
 
+/// A struct representing a Guard, with its ID
+/// and its sleep record
 pub struct Guard {
+    /// Unique ID of the `Guard`
     id: u32,
+    /// Sleep records of the `Guard`
     pub asleep: FnvHashMap<u32, usize>,
 }
 
 impl Guard {
+    /// Creates a new instance of a `Guard`
     pub fn new(id: u32) -> Guard {
         Guard {
             id,
@@ -18,6 +23,7 @@ impl Guard {
         }
     }
 
+    /// Adds a sleep record from the two given timestamps
     pub fn add_sleep_schedule(&mut self, start: NaiveDateTime, end: NaiveDateTime) {
         let start_min = start.hour() * 60 + start.minute();
         let end_min = end.hour() * 60 + end.minute();
@@ -27,6 +33,7 @@ impl Guard {
         });
     }
 
+    /// Merges the given sleep record with the current `Guard`'s
     pub fn append_asleep(&mut self, asleep: FnvHashMap<u32, usize>) {
         asleep.iter().for_each(|(k, v)| {
             let entry = self.asleep.entry(*k).or_insert(0usize);
@@ -34,16 +41,26 @@ impl Guard {
         });
     }
 
+    /// Computes the total sleeping time of a `Guard` in minutes.
+    /// Useful for part one.
     pub fn total_sleeping(&self) -> usize {
         self.asleep.values().sum()
     }
 
+    /// Finds out the minute when the `Guard` slept the most using its
+    /// sleep record. Returns the minute and the number of times the
+    /// `Guard` did sleep at said minute. Apparently, a `Guard`'s sleeping
+    /// records can be empty so we need to handle the case of `asleep` being
+    /// empty ... I chose to return (0,0).
     pub fn max_sleeping_minute(&self) -> (u32, u32) {
         let (k, v) = self.asleep.iter().max_by_key(|a| a.1).unwrap_or((&0, &0));
         (*k, *v as u32)
     }
 }
 
+/// A `GuardBuilder` is a struct implementing a
+/// builder pattern for the `Guard` structs, that will
+/// create a list of `Guard`s based on given `Instruction`s
 pub struct GuardBuilder {
     pub done: Vec<Guard>,
     building: Option<Guard>,
@@ -51,6 +68,8 @@ pub struct GuardBuilder {
 }
 
 impl GuardBuilder {
+    /// Instantiates a `GuardBuilder` that we will use to
+    /// provide a list of `Guard`s
     pub fn new() -> Self {
         GuardBuilder {
             done: vec![],
@@ -59,6 +78,7 @@ impl GuardBuilder {
         }
     }
 
+    /// Adds an instruction to the builder
     pub fn with_instr(self, instr: Instruction) -> Self {
         match instr.action {
             Action::Start(id) => self.handle_start(id),
@@ -67,8 +87,12 @@ impl GuardBuilder {
         }
     }
 
+    /// Handles the receiving of an `Action::Start`
     fn handle_start(mut self, id: u32) -> Self {
         if let Some(g) = self.building {
+            // If we already have an existing `Guard` in the list with
+            // the ID of the one being built previously, we must not
+            // forget to merge the sleep records
             match self.done.iter_mut().find(|gg| g.id == gg.id) {
                 Some(existing) => existing.append_asleep(g.asleep),
                 None => self.done.push(g),
@@ -79,12 +103,16 @@ impl GuardBuilder {
         self
     }
 
+    /// Handles the receiving of an `Action::Sleep`
     fn handle_sleep(mut self, timestamp: NaiveDateTime) -> Self {
         self.start_ts = Some(timestamp);
         self
     }
 
+    /// Handles the receiving of an `Action::Wake`
     fn handle_wake(mut self, timestamp: NaiveDateTime) -> Self {
+        // When receiving a Wake signal, we must add the sleep record
+        // to the `Guard`'s history
         if let Some(ts) = self.start_ts {
             let mut guard = self.building.unwrap();
             guard.add_sleep_schedule(ts, timestamp);
@@ -93,6 +121,7 @@ impl GuardBuilder {
         self
     }
 
+    /// Finishes the builder, returning a list of `Guard`s structs
     pub fn build(mut self) -> Vec<Guard> {
         if let Some(g) = self.building {
             match self.done.iter_mut().find(|gg| g.id == gg.id) {
@@ -105,30 +134,38 @@ impl GuardBuilder {
 }
 
 #[derive(Eq, PartialEq, Debug)]
+/// Various actions affecting a `Guard`
 pub enum Action {
+    /// Starts the shift of one `Guard`
     Start(u32),
+    /// One `Guard` goes to sleep
     Sleep,
+    /// One `Guard` wakes up
     Wake,
 }
 
 #[derive(Eq, PartialEq, Debug)]
+/// Instructions as described in the input
 pub struct Instruction {
     timestamp: NaiveDateTime,
     pub action: Action,
 }
 
+/// PartialOrd and Ord allows me to use .sort()
 impl PartialOrd for Instruction {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
+/// PartialOrd and Ord allows me to use .sort()
 impl Ord for Instruction {
     fn cmp(&self, other: &Self) -> Ordering {
         self.timestamp.cmp(&other.timestamp)
     }
 }
 
+/// I'm implementing FromStr in order to be able to call .parse, which is more idiomatic
 impl FromStr for Instruction {
     type Err = Box<dyn Error>;
     fn from_str(input: &str) -> Result<Self, Box<dyn Error>> {
@@ -140,6 +177,7 @@ impl FromStr for Instruction {
     }
 }
 
+/// I'm implementing FromStr in order to be able to call .parse, which is more idiomatic
 impl FromStr for Action {
     type Err = Box<dyn Error>;
 
@@ -157,40 +195,50 @@ impl FromStr for Action {
     }
 }
 
+/// Generates the guards from the input
 #[aoc_generator(day4)]
 fn gen_guards(input: &str) -> Vec<Guard> {
+    // Parses the instructions from the input
     let mut instructions: Vec<Instruction> = input
         .lines()
         .map(|l| l.parse().expect("Failed to parse instruction"))
         .collect();
 
+    // Sorts the `Instruction`s by Timestamp
     instructions.sort();
 
+    // Uses the `GuardBuilder` to create a list of `Guard` using
+    // the ordered `Instruction`s
     instructions
         .into_iter()
         .fold(GuardBuilder::new(), |acc, i| acc.with_instr(i))
         .build()
 }
 
+/// Solves the part one
 #[aoc(day4, part1)]
 fn part_one(input: &[Guard]) -> u32 {
+    // Gets the `Guard` that slept the most
     let max_sleeping_guard = input
         .into_iter()
         .max_by_key(|g| g.total_sleeping())
         .expect("Couldn't find max sleeping guard");
 
+    // Computes the minute where said `Guard` slept the most
     let max_sleeping_minute = max_sleeping_guard.max_sleeping_minute();
     max_sleeping_guard.id * max_sleeping_minute.0
 }
 
+/// Solves the part two
 #[aoc(day4, part2)]
 fn part_two(input: &[Guard]) -> u32 {
-    let test = input.iter().count();
+    // Gets the `Guard` that slept the most on a given minute
     let max_sleeping_guard = input
         .iter()
         .max_by_key(|g| g.max_sleeping_minute().1)
         .expect("Couldn't find max sleeping guard");
 
+    // Computes the minute where said `Guard` slept the most
     let max_sleeping_minute = max_sleeping_guard.max_sleeping_minute();
     max_sleeping_guard.id * max_sleeping_minute.0
 }
