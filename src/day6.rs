@@ -30,13 +30,17 @@ impl FromStr for Point2 {
 }
 
 fn bounding_box(input: &[Point2]) -> (i32, i32, i32, i32) {
-    input.iter().fold((0, 0, 0, 0), |acc, i| {
-        let left = acc.0.min(i.x);
-        let top = acc.1.min(i.x);
-        let right = acc.2.min(i.y);
-        let bottom = acc.3.max(i.y);
-        (left, top, right, bottom)
-    })
+    let first = &input[0];
+    input
+        .iter()
+        .fold((first.x, first.y, first.x, first.y), |acc, i| {
+            (
+                acc.0.min(i.x),
+                acc.1.min(i.y),
+                acc.2.max(i.x),
+                acc.3.max(i.y),
+            )
+        })
 }
 
 #[aoc_generator(day6)]
@@ -47,17 +51,18 @@ pub fn generator(input: &str) -> Vec<Point2> {
         .collect()
 }
 
+#[aoc(day6, part1)]
 pub fn part_one(input: &[Point2]) -> i32 {
     let bbox = bounding_box(input);
-    let final_bounds = (bbox.0 - 1000, bbox.1 - 1000, bbox.2 + 1000, bbox.3 + 1000);
+    let final_bounds = (bbox.0 - 400, bbox.1 - 400, bbox.2 + 400, bbox.3 + 400);
 
     let input_filtered: Vec<Point2> = input
         .iter()
         .filter_map(|p| {
-            if p.x != bbox.0 && p.x != bbox.2 && p.y != bbox.1 && p.y != bbox.3 {
-                Some(p.clone())
-            } else {
+            if p.x == bbox.0 || p.x == bbox.2 || p.y == bbox.1 || p.y == bbox.3 {
                 None
+            } else {
+                Some(p.clone())
             }
         })
         .collect();
@@ -67,8 +72,8 @@ pub fn part_one(input: &[Point2]) -> i32 {
         .map(|x| (final_bounds.1..=final_bounds.3).map(move |y| Point2::new(x, y)))
         .flat_map(|i| i.into_iter())
         .for_each(|i| {
-            let (point, _, count) = input_filtered.iter().map(|p| (p, p.distance(&i))).fold(
-                (Point2::new(0, 0), 0, 0),
+            let (point, _, count) = input.iter().map(|p| (p, p.distance(&i))).fold(
+                (Point2::new(0, 0), 100000, 0),
                 |acc, i| match i.1 {
                     x if x < acc.1 => (i.0.clone(), i.1, 1),
                     x if x == acc.1 => (i.0.clone(), i.1, acc.2 + 1),
@@ -81,7 +86,32 @@ pub fn part_one(input: &[Point2]) -> i32 {
             }
         });
 
-    *hash_map.values().max().expect("Could not find max value")
+    *hash_map
+        .iter()
+        .filter_map(|(k, v)| {
+            if input_filtered.iter().filter(|p| *p == k).count() == 1 {
+                if *v < 10000 {
+                    Some(v)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .max()
+        .expect("Could not find max value")
+}
+
+#[aoc(day6, part2)]
+fn part_two(input: &[Point2]) -> usize {
+    let bbox = bounding_box(input);
+
+    (bbox.0..=bbox.2)
+        .map(|x| (bbox.1..=bbox.3).map(move |y| Point2::new(x, y)))
+        .flat_map(|i| i.into_iter())
+        .filter(|p| input.iter().map(|pp| pp.distance(p)).sum::<i32>() < 10000)
+        .count()
 }
 
 #[cfg(test)]
