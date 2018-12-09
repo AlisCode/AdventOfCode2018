@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 fnv = "1.0.6"
-aoc-runner = "0.1.0"
-aoc-runner-derive = "0.1.6"
+aoc-runner = "*"
+aoc-runner-derive = "*"
 edit-distance = "2.0.1"
 rayon = "1.0.3"
 chrono = "0.4.6"
