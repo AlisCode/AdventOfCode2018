@@ -62,6 +62,53 @@ impl PartialOrd for Node {
     }
 }
 
+pub struct WorkerManager {
+    nodes: Vec<Node>,
+    workers: Vec<Option<(u8, u32)>>,
+    additional_time: u8,
+    duration: u32,
+}
+
+impl WorkerManager {
+    pub fn new(nodes: Vec<Node>, nb_workers: u32, additional_time: u8) -> Self {
+        let workers: Vec<Option<(u8, u32)>> = (1..=nb_workers).map(|_| None).collect();
+        WorkerManager {
+            nodes,
+            workers,
+            additional_time,
+            duration: 0,
+        }
+    }
+
+    pub fn solve(&mut self) {
+        let mut solved: Vec<u8> = vec![];
+        let target = self.nodes.len();
+        while solved.len() != target {
+            for w in self.workers.iter_mut().filter(|w| w.is_none()) {
+                if let Some(node) = self.nodes.iter().find(|n| n.deps_ok(&solved)) {
+                    *w = Some((node.name, node.duration(self.additional_time)));
+                    let idx_first = self
+                        .nodes
+                        .iter()
+                        .position(|n| n.name == node.name)
+                        .expect("Failed to find node ...");
+                    self.nodes.remove(idx_first);
+                }
+            }
+
+            for w in self.workers.iter_mut().filter(|w| w.is_some()) {
+                *w = Some((w.unwrap().0, w.unwrap().1 - 1));
+                if w.unwrap().1 == 0 {
+                    solved.push(w.unwrap().0);
+                    *w = None;
+                }
+            }
+
+            self.duration += 1;
+        }
+    }
+}
+
 #[aoc_generator(day7)]
 pub fn gen_nodes(input: &str) -> Vec<Node> {
     let mut nodes: Vec<Node> = vec![];
@@ -108,7 +155,9 @@ pub fn part_two(input: &[Node]) -> u32 {
 }
 
 fn calc_duration(input: &[Node], workers: u32, additional_time: u8) -> u32 {
-    0
+    let mut worker_manager = WorkerManager::new(input.to_vec(), workers, additional_time);
+    worker_manager.solve();
+    worker_manager.duration
 }
 
 #[cfg(test)]
