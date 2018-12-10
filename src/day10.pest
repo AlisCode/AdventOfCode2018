@@ -1,3 +1,5 @@
-nb = { ("-" | " ")? ~ ASCII_DIGIT+ }
-point = { "<" ~ nb ~ ", " ~ nb ~ ">"}
-star = { "position=" ~ point ~ " velocity=" ~ point }
+WHITESPACE = _{ " " }
+
+nb = @{ "-"? ~ ASCII_DIGIT+ }
+point = { "<" ~ nb ~ "," ~ nb ~ ">"}
+star = { "position=" ~ point ~ "velocity=" ~ point }
