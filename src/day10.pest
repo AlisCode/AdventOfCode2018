@@ -1,0 +1,3 @@
+nb = { ("-" | " ")? ~ ASCII_DIGIT+ }
+point = { "<" ~ nb ~ ", " ~ nb ~ ">"}
+star = { "position=" ~ point ~ " velocity=" ~ point }

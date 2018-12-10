@@ -1,9 +1,12 @@
 #[macro_use]
 extern crate aoc_runner_derive;
+#[macro_use]
+extern crate pest_derive;
 
 use aoc_runner_derive::aoc_lib;
 
 mod day1;
+mod day10;
 mod day2;
 mod day3;
 mod day4;
