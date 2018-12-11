@@ -41,28 +41,43 @@ fn part_one(input: &[i32]) -> String {
     format!("{},{}", coords.0, coords.1)
 }
 
+fn summed_table(grid: &[i32]) -> Vec<i32> {
+    let mut summed_table: Vec<i32> = vec![0; 300 * 300];
+    (1..300)
+        .map(|y| (1..300).map(move |x| (x, y)))
+        .flat_map(|i| i.into_iter())
+        .for_each(|(x, y)| {
+            let idx: i32 = (y - 1) * 300 + x;
+            let idx_left: i32 = (y - 1) * 300 + x - 1;
+            let idx_top: i32 = (y - 2) * 300 + x;
+            let idx_top_left: i32 = (y - 2) * 300 + x - 1;
+            summed_table[idx as usize] = grid[idx as usize]
+                + grid.get(idx_left as usize).unwrap_or(&0)
+                + grid.get(idx_top as usize).unwrap_or(&0)
+                - grid.get(idx_top_left as usize).unwrap_or(&0)
+        });
+    summed_table
+}
+
+fn extract_sum(summed: &[i32], x: i32, y: i32, s: i32) -> i32 {
+    let a = &summed[((y - 1) * 300 + x - 1) as usize];
+    let b = &summed[((y - 1) * 300 + x - 1 + s) as usize];
+    let c = &summed[((y - 1 + s) * 300 + x - 1) as usize];
+    let d = &summed[((y - 1 + s) * 300 + x - 1 + s) as usize];
+    d - b - c + a
+}
+
 #[aoc(day11, part2)]
-fn part_two(input: &[i32]) -> String {
+fn part_two(grid: &[i32]) -> String {
+    let summed = summed_table(grid);
     let (_, (x, y, s)) = (1..300)
         .map(|s| {
-            (300 - s..300)
-                .map(move |x| (300 - s..300).map(move |y| (x, y, s)))
+            (1..300 - s)
+                .map(move |x| (1..300 - s).map(move |y| (x, y, s)))
                 .flat_map(|i| i.into_iter())
         })
         .flat_map(|i| i.into_iter())
-        .map(|(x, y, s)| {
-            (
-                (x..300)
-                    .map(|xx| (y..300).map(move |yy| (xx, yy)))
-                    .flat_map(|i| i.into_iter())
-                    .map(|(xx, yy)| {
-                        let idx = (yy - 1) * 300 + xx;
-                        input[idx]
-                    })
-                    .sum::<i32>(),
-                (x + 1, y, s),
-            )
-        })
+        .map(|(x, y, s)| (extract_sum(&summed, x, y, s), (x - s, y - s, s)))
         .max_by_key(|i| i.0)
         .expect("Failed to find max");
     format!("{},{},{}", x, y, s)
@@ -76,6 +91,31 @@ pub mod tests {
     fn day11_power_level() {
         let grid = gen_grid("57");
         assert_eq!(grid[(79 - 1) * 300 + 122], -5);
+    }
+
+    #[test]
+    fn day11_summed_table() {
+        let grid = gen_grid("18");
+        let summed = summed_table(&grid);
+        assert_eq!(summed[0], grid[0]);
+
+        /*
+            let val_check = summed[602];
+            let val_summed = summed[0]
+                + summed[1]
+                + summed[2]
+                + summed[300]
+                + summed[301]
+                + summed[302]
+                + summed[600]
+                + summed[601]
+                + summed[602];
+            assert_eq!(val_check, val_summed);
+        
+        
+            let extracted = extract_sum(&summed, 90, 269, 16);
+            assert_eq!(extracted, 113);
+            */
     }
 
     #[test]
