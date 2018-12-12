@@ -1,0 +1,7 @@
+WHITESPACE = _{ " " | "\t" | "\n" }
+
+plant = { "#" | "." }
+pattern = @{ plant+ }
+plantrule = @{ pattern ~ " => " ~ plant }
+initialstate = @{ "initial state: " ~ pattern }
+global = { initialstate ~ plantrule* }
