@@ -12,22 +12,35 @@ pub struct Plants {
 
 impl Plants {
     pub fn next(&mut self) {
-        let state_len = self.state.len() as i32;
-        let new_state: FnvHashMap<i32, char> = (-1..state_len + 1)
-            .map(|i| {
+        let min = self.state.keys().min().expect("Failed to find min");
+        let max = self.state.keys().max().expect("Failed to find max");
+        let new_state: FnvHashMap<i32, char> = (min - 2..max + 2)
+            .filter_map(|i| {
                 let pattern: String = (i - 2..=i + 2)
                     .map(|ii| self.state.get(&ii).unwrap_or(&'.'))
                     .collect();
-                (i, *self.rules.get(&pattern).unwrap_or(&'.'))
+                let c = *self.rules.get(&pattern).unwrap_or(&'.');
+                if c == '.' && !self.state.contains_key(&i) {
+                    return None;
+                }
+                Some((i, c))
             })
             .collect();
         self.state = new_state;
     }
 
-    pub fn count_plants(&self) -> usize {
+    pub fn count_plants(&self) -> i32 {
+        self.state
+            .iter()
+            .filter_map(|(i, c)| if *c == '#' { Some(i) } else { None })
+            .sum()
+    }
+
+    pub fn number_plants(&self) -> usize {
         self.state.values().filter(|&c| *c == '#').count()
     }
 
+    #[cfg(test)]
     pub fn string_repr(&self) -> String {
         let mut vals: Vec<(i32, char)> = self.state.iter().map(|(id, c)| (*id, *c)).collect();
         vals.sort_by(|a, b| a.0.cmp(&b.0));
@@ -99,15 +112,39 @@ fn gen_plants(input: &str) -> Plants {
 }
 
 #[aoc(day12, part1)]
-fn part_one(input: &Plants) -> usize {
+fn part_one(input: &Plants) -> i32 {
     let mut plants = input.clone();
-    (0..19)
-        .map(|_| {
+    (0..20).for_each(|_| plants.next());
+    plants.count_plants()
+}
+
+#[aoc(day12, part2)]
+fn part_two(input: &Plants) -> i64 {
+    let mut plants = input.clone();
+    // Plants will eventually all become the same pattern repeating over and over
+    let mut times_same = 0;
+    let mut plant_nb = 0;
+    // So let's find the index where the number of plants stay the same ..
+    let convergence_id = (0..)
+        .find(|_| {
             plants.next();
-            plants.count_plants()
+            let nb = plants.number_plants();
+            if nb == plant_nb {
+                times_same += 1;
+                // ... about a hundred times
+                return times_same >= 100;
+            } else {
+                plant_nb = nb;
+            }
+            false
         })
-        .sum::<usize>()
-        + input.count_plants()
+        .expect("Failed to find convergence");
+
+    // Compute the score (part one) of the current scheme
+    // All plants move by 1 each iteration, so the final score will
+    // eventually be: score + number of plants * offset
+    let offset: i64 = 50_000_000_000 - convergence_id - 1;
+    plants.count_plants() as i64 + plants.number_plants() as i64 * offset
 }
 
 #[cfg(test)]
@@ -136,21 +173,34 @@ pub mod tests {
     fn day12_next() {
         let mut plants = gen_plants(INPUT);
 
-        let expected = "#..#.#..##......###...###".to_string();
-        let actual: String = plants.string_repr();
-        assert_eq!(expected, actual);
+        let expected: Vec<&str> = vec![
+            "#..#.#..##......###...###",
+            "#...#....#.....#..#..#..#",
+            "##..##...##....#..#..#..##",
+            "#.#...#..#.#....#..#..#...#",
+            ".#.#..#...#.#...#..#..##..##",
+            "..#...##...#.#..#..#...#...#",
+            "..##.#.#....#...#..##..##..##",
+            ".#..###.#...##..#...#...#...#",
+            ".#....##.#.#.#..##..##..##..##",
+            ".##..#..#####....#...#...#...#",
+            "#.#..#...#.##....##..##..##..##",
+            ".#...##...#.#...#.#...#...#...#",
+            ".##.#.#....#.#...#.#..##..##..##",
+            "#..###.#....#.#...#....#...#...#",
+            "#....##.#....#.#..##...##..##..##",
+            "##..#..#.#....#....#..#.#...#...#",
+            "#.#..#...#.#...##...#...#.#..##..##",
+            ".#...##...#.#.#.#...##...#....#...#",
+            ".##.#.#....#####.#.#.#...##...##..##",
+            "#..###.#..#.#.#######.#.#.#..#.#...#",
+            "#....##....#####...#######....#.#..##",
+        ];
 
-        plants.next();
-
-        let expected = ".#...#....#.....#..#..#..#.";
-        let actual: String = plants.string_repr();
-        assert_eq!(expected, actual);
-
-        plants.next();
-
-        let expected = ".##..##...##....#..#..#..##..";
-        let actual: String = plants.string_repr();
-        assert_eq!(expected, actual);
+        (0..expected.len()).for_each(|i| {
+            assert_eq!(&plants.string_repr(), expected[i]);
+            plants.next();
+        });
     }
 
     #[test]
