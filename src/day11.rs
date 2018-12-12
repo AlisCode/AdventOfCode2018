@@ -1,7 +1,10 @@
 /// Generates the grid
 #[aoc_generator(day11)]
 fn gen_grid(input: &str) -> Vec<i32> {
-    let grid_serial: i32 = input.parse::<i32>().expect("Failed to get serial number");
+    let grid_serial: i32 = input
+        .trim()
+        .parse::<i32>()
+        .expect("Failed to get serial number");
     (1..=300)
         .map(|y| (1..=300).map(move |x| (x, y)))
         .flat_map(|i| i.into_iter())
