@@ -27,6 +27,7 @@ pub struct Cart {
     next_dir: i32,
     x: i32,
     y: i32,
+    pub alive: bool,
 }
 
 impl Cart {
@@ -44,6 +45,7 @@ impl Cart {
             y,
             dir: dir_nb,
             next_dir: 0,
+            alive: true,
         }
     }
 
@@ -119,6 +121,33 @@ impl TracksInfo {
     }
 
     fn clear_colliding_carts(&mut self) {
+        let ids: Vec<usize> = self
+            .carts
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.alive)
+            .filter_map(|(i, c)| {
+                if self
+                    .carts
+                    .iter()
+                    .filter(|cc| cc.alive && cc.x == c.x && cc.y == c.y)
+                    .count()
+                    >= 2
+                {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        self.carts
+            .iter_mut()
+            .enumerate()
+            .filter(|(i, c)| c.alive && ids.contains(i))
+            .for_each(|(_, mut c)| c.alive = false);
+
+        /*
         let new_carts: Vec<Cart> = self
             .carts
             .iter()
@@ -138,6 +167,7 @@ impl TracksInfo {
             .collect();
 
         self.carts = new_carts;
+        */
     }
 }
 
@@ -194,8 +224,8 @@ fn part_two(input: &TracksInfo) -> String {
             tracks.tick_all();
             tracks.clear_colliding_carts();
 
-            if tracks.carts.len() == 1 {
-                let lone_cart = &tracks.carts[0];
+            if tracks.carts.iter().filter(|c| c.alive).count() == 1 {
+                let lone_cart = tracks.carts.iter().filter(|c| c.alive).next().unwrap();
                 return Some((lone_cart.x, lone_cart.y));
             }
             None
