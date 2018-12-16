@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::AsRef;
 
@@ -21,13 +22,31 @@ impl From<char> for Node {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cart {
     dir: i32,
     next_dir: i32,
     x: i32,
     y: i32,
     pub alive: bool,
+    pub marked_dead: bool,
+}
+
+impl Ord for Cart {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.y < other.y {
+            return Ordering::Less;
+        } else if self.y == other.y && self.x < other.x {
+            return Ordering::Less;
+        }
+        Ordering::Greater
+    }
+}
+
+impl PartialOrd for Cart {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Cart {
@@ -46,10 +65,26 @@ impl Cart {
             dir: dir_nb,
             next_dir: 0,
             alive: true,
+            marked_dead: false,
         }
     }
 
     pub fn tick(&mut self, nodes: &HashMap<(i32, i32), Node>) {
+        if self.marked_dead {
+            self.alive = false;
+            self.marked_dead = false;
+        }
+        if !self.alive {
+            return;
+        }
+        self.advance();
+        let node: &Node = nodes
+            .get(&(self.x, self.y))
+            .expect(&format!("Failed to get node {} {} !", self.x, self.y));
+        self.handle_node(node);
+    }
+
+    pub fn advance(&mut self) {
         match self.dir {
             0 => self.x -= 1,
             1 => self.y -= 1,
@@ -57,8 +92,6 @@ impl Cart {
             3 => self.y += 1,
             _ => unreachable!(),
         }
-        let node: &Node = nodes.get(&(self.x, self.y)).expect("Failed to get node!");
-        self.handle_node(node);
     }
 
     fn handle_node(&mut self, node: &Node) {
@@ -96,12 +129,48 @@ impl Cart {
 pub struct TracksInfo {
     nodes: HashMap<(i32, i32), Node>,
     carts: Vec<Cart>,
+    next: usize,
 }
 
 impl TracksInfo {
     pub fn tick_all(&mut self) {
         let nodes = &self.nodes;
         self.carts.iter_mut().for_each(|c| c.tick(nodes));
+    }
+
+    pub fn tick_next(&mut self) {
+        self.next %= self.carts.len();
+        if !self.carts[self.next].alive {
+            self.next += 1;
+            return;
+        }
+
+        self.carts[self.next].tick(&self.nodes);
+        let pos = (self.carts[self.next].x, self.carts[self.next].y);
+        let carts_collided_ids = self
+            .carts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| {
+                if c.alive && c.x == pos.0 && c.y == pos.1 {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<usize>>();
+
+        if carts_collided_ids.len() >= 2 {
+            carts_collided_ids.into_iter().for_each(|i| {
+                self.carts[i].marked_dead = true;
+            })
+        }
+
+        self.next += 1;
+    }
+
+    pub fn sort_carts(&mut self) {
+        self.carts.sort_unstable();
     }
 
     pub fn collision(&self) -> Option<(i32, i32)> {
@@ -118,56 +187,6 @@ impl TracksInfo {
             })
             .flat_map(|i| i.into_iter())
             .next()
-    }
-
-    fn clear_colliding_carts(&mut self) {
-        let ids: Vec<usize> = self
-            .carts
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.alive)
-            .filter_map(|(i, c)| {
-                if self
-                    .carts
-                    .iter()
-                    .filter(|cc| cc.alive && cc.x == c.x && cc.y == c.y)
-                    .count()
-                    >= 2
-                {
-                    Some(i)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        self.carts
-            .iter_mut()
-            .enumerate()
-            .filter(|(i, c)| c.alive && ids.contains(i))
-            .for_each(|(_, mut c)| c.alive = false);
-
-        /*
-        let new_carts: Vec<Cart> = self
-            .carts
-            .iter()
-            .enumerate()
-            .filter_map(|(i, c)| {
-                if self
-                    .carts
-                    .iter()
-                    .enumerate()
-                    .all(move |(ii, cc)| ii == i || cc.x != c.x || cc.y != c.y)
-                {
-                    Some(c.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        self.carts = new_carts;
-        */
     }
 }
 
@@ -197,7 +216,11 @@ fn gen_tracks(input: &str) -> TracksInfo {
         x = 0;
     });
 
-    TracksInfo { nodes, carts }
+    TracksInfo {
+        nodes,
+        carts,
+        next: 0,
+    }
 }
 
 #[aoc(day13, part1)]
@@ -221,13 +244,27 @@ fn part_two(input: &TracksInfo) -> String {
 
     let pos = (0..)
         .filter_map(|_| {
-            tracks.tick_all();
-            tracks.clear_colliding_carts();
+            tracks.sort_carts();
 
-            if tracks.carts.iter().filter(|c| c.alive).count() == 1 {
-                let lone_cart = tracks.carts.iter().filter(|c| c.alive).next().unwrap();
+            (0..tracks.carts.len()).for_each(|_| {
+                tracks.tick_next();
+            });
+            if tracks
+                .carts
+                .iter()
+                .filter(|c| c.alive && !c.marked_dead)
+                .count()
+                == 1
+            {
+                let lone_cart = tracks
+                    .carts
+                    .iter()
+                    .filter(|c| c.alive && !c.marked_dead)
+                    .next()
+                    .unwrap();
                 return Some((lone_cart.x, lone_cart.y));
             }
+
             None
         })
         .next()
@@ -258,8 +295,35 @@ pub mod tests {
     #[test]
     fn day13_parsing() {
         let track_info = gen_tracks(INPUT);
+        let track_info_2 = gen_tracks(INPUT_2);
 
         assert_eq!(track_info.carts.len(), 2);
+        let cart_one = &track_info.carts[0];
+        assert_eq!(cart_one.x, 2);
+        assert_eq!(cart_one.y, 0);
+
+        let cart_two = &track_info.carts[1];
+        assert_eq!(cart_two.x, 9);
+        assert_eq!(cart_two.y, 3);
+
+        let positions = vec![
+            (1, 0),
+            (3, 0),
+            (3, 2),
+            (6, 3),
+            (1, 4),
+            (3, 4),
+            (6, 5),
+            (3, 6),
+            (5, 6),
+        ];
+
+        positions.iter().enumerate().for_each(|(i, p)| {
+            let cart = &track_info_2.carts[i];
+            assert_eq!(cart.x, p.0);
+            assert_eq!(cart.y, p.1);
+        });
+
         assert_eq!(
             track_info
                 .nodes
