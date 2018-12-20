@@ -32,10 +32,11 @@ pub fn part_one(input: &str) -> String {
 #[aoc(day14, part2)]
 pub fn part_two(input: &str) -> usize {
     let input_size = input.chars().count();
+    let input: String = input.chars().rev().collect();
     let mut scores: Vec<usize> = vec![3, 7];
     let mut index_elf_one = 0;
     let mut index_elf_two = 1;
-    let mut offset_recipe = 0;
+    let mut is_other = false;
 
     (0..)
         .find(|_| {
@@ -45,34 +46,29 @@ pub fn part_two(input: &str) -> usize {
                 .chars()
                 .map(|c| c.to_digit(10).expect("Failed to parse digit") as usize)
                 .collect();
-            if digits.len() == 2 {
-                offset_recipe += 1;
-            }
             scores.append(&mut digits);
             index_elf_one = (index_elf_one + 1 + scores[index_elf_one]) % scores.len();
             index_elf_two = (index_elf_two + 1 + scores[index_elf_two]) % scores.len();
 
-            match scores.len().checked_sub(input_size + 1) {
-                Some(i) => {
-                    let i_other = i + 1;
-                    let check_i: String = scores
-                        .iter()
-                        .skip(i)
-                        .map(|c| char::from_digit(*c as u32, 10).unwrap())
-                        .collect();
-                    let check_i_other: String = scores
-                        .iter()
-                        .skip(i_other)
-                        .map(|c| char::from_digit(*c as u32, 10).unwrap())
-                        .collect();
-                    &check_i == input || &check_i_other == input
-                }
-                _ => false,
-            }
+            let check_i: String = scores
+                .iter()
+                .rev()
+                .take(input_size)
+                .map(|c| char::from_digit(*c as u32, 10).unwrap())
+                .collect();
+            let check_i_other: String = scores
+                .iter()
+                .rev()
+                .skip(1)
+                .take(input_size)
+                .map(|c| char::from_digit(*c as u32, 10).unwrap())
+                .collect();
+            is_other = &check_i_other == &input;
+            &check_i == &input || is_other
         })
-        .unwrap()
-        + offset_recipe // Number of times we added 2 recipes
-        - 2 // Minus to two recipes from the start
+        .unwrap();
+
+    scores.len() - input_size - if is_other { 1 } else { 0 }
 }
 
 #[cfg(test)]
