@@ -141,43 +141,58 @@ fn extract_sample_entry_part_one(iter_lines: &mut Lines) -> Option<Vec<Vec<i32>>
 }
 
 fn find_opcodes(input: Vec<Vec<Vec<i32>>>) -> FnvHashMap<usize, Opcode> {
-    let mut matched: Vec<usize> = vec![];
-    Instruction::all(0, 0, 0)
-        .into_iter()
-        .map(|r| {
-            (
-                (0..16usize)
-                    .find(|ii| {
-                        if matched.contains(ii) {
-                            return false;
-                        }
+    let mut ops: FnvHashMap<usize, Vec<usize>> = (0..16usize)
+        .map(|o| (o, (0..16).collect::<Vec<usize>>()))
+        .collect();
 
-                        let val = input
-                            .iter()
-                            .filter(|inp| inp[1][0] as usize == *ii)
-                            .all(|inp| {
-                                Instruction::new(
-                                    r.opcode,
-                                    inp[1][1] as usize,
-                                    inp[1][2] as usize,
-                                    inp[1][3] as usize,
-                                )
-                                .solve(inp[0].clone())
-                                    == inp[2]
-                            });
-                        if val {
-                            matched.push(*ii);
-                        }
-                        val
-                    })
-                    .expect(&format!(
-                        "Failed to find corresponding entry for {:?}",
-                        r.opcode
-                    )),
-                r.opcode,
-            )
-        })
-        .collect()
+    input.into_iter().for_each(|i| {
+        let opcode_idx = i[1][0] as usize;
+        let operations = ops.remove(&opcode_idx).unwrap_or(vec![]);
+        let possible: Vec<usize> =
+            Instruction::all(i[1][1] as usize, i[1][2] as usize, i[1][3] as usize)
+                .into_iter()
+                .enumerate()
+                .filter_map(|(idx, ii)| {
+                    if ii.solve(i[0].clone()) == i[2] {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        ops.insert(
+            opcode_idx,
+            operations
+                .into_iter()
+                .filter(|ii| possible.contains(ii))
+                .collect(),
+        );
+    });
+
+    let mut hm: FnvHashMap<usize, Opcode> = FnvHashMap::default();
+    let opcodes: Vec<Opcode> = Instruction::all(0, 0, 0)
+        .into_iter()
+        .map(|i| i.opcode)
+        .collect();
+    let mut matched: Vec<usize> = vec![];
+
+    loop {
+        ops.retain(|k, v| {
+            if v.len() == 1 {
+                matched.push(v[0]);
+                hm.insert(*k, opcodes[v[0]]);
+                return false;
+            }
+            let other = v.iter().cloned().filter(|i| !matched.contains(i)).collect();
+            *v = other;
+            true
+        });
+        if ops.len() == 0 {
+            break;
+        }
+    }
+
+    hm
 }
 
 #[aoc(day16, part1)]
@@ -225,7 +240,6 @@ fn part_two(input: &str) -> i32 {
         .unwrap();
 
     let rules = find_opcodes(registers);
-    println!("{:?}", rules);
     lines
         .filter_map(|l| {
             let rgs = Registers::parse_line(l);
