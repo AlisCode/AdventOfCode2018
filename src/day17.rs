@@ -1,3 +1,4 @@
+use fnv::FnvHashMap;
 use from_pest::FromPest;
 use pest::Parser;
 use std::str::FromStr;
@@ -79,8 +80,7 @@ mod day17_ast {
             };
 
             x.into_iter()
-                .map(|xx| y.iter().map(move |yy| (xx, *yy)))
-                .flat_map(|i| i.into_iter())
+                .flat_map(|xx| y.iter().map(move |yy| (xx, *yy)))
                 .collect()
         }
     }
@@ -115,6 +115,156 @@ fn parse_input(input: &str) -> Vec<day17_ast::Info> {
         .consume()
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum WaterState {
+    Flood,
+    Rest,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum TileState {
+    Water(WaterState),
+    Clay,
+    Empty,
+}
+
+pub struct World {
+    tiles: FnvHashMap<(i32, i32), TileState>,
+    y_limit: i32,
+}
+
+impl World {
+    /// Creates a new world with the given infos
+    pub fn new(infos: &[day17_ast::Info]) -> Self {
+        let mut y_limit = 0;
+        let mut tiles: FnvHashMap<(i32, i32), TileState> = infos
+            .into_iter()
+            .flat_map(|i| i.get_coordinates())
+            .map(|c| {
+                if y_limit < c.1 {
+                    y_limit = c.1;
+                }
+                (c, TileState::Clay)
+            })
+            .collect();
+        tiles.insert((500, 0), TileState::Water(WaterState::Flood));
+        World { tiles, y_limit }
+    }
+
+    /// Ticks the world to create new water Floods accordingly.
+    /// Returns false if nothing has changed during the tick
+    pub fn tick(&mut self) -> bool {
+        // Computes the change in state of the World, only the Floods are taken into account
+        let state_change: Vec<((i32, i32), TileState)> = self
+            .tiles
+            .iter()
+            .filter_map(|(k, v)| {
+                if k.1 > self.y_limit || v != &TileState::Water(WaterState::Flood) {
+                    return None;
+                }
+                let down = (k.0, k.1 + 1);
+                match self.get_tile(down) {
+                    TileState::Clay | TileState::Water(WaterState::Rest) => {
+                        let right = (k.0 + 1, k.1);
+                        match self.get_tile(right) {
+                            TileState::Water(WaterState::Flood) | TileState::Empty => None,
+                            _ => {
+                                let left = (k.0 - 1, k.1);
+                                match self.get_tile(left) {
+                                    TileState::Water(WaterState::Flood) | TileState::Empty => None,
+                                    _ => Some((k.clone(), TileState::Water(WaterState::Rest))),
+                                }
+                            }
+                        }
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        println!("{} changes", state_change.len());
+        println!(
+            "putting {} to rest",
+            state_change
+                .iter()
+                .filter(|&v| v.1 == TileState::Water(WaterState::Rest))
+                .count()
+        );
+
+        let to_add: Vec<((i32, i32), TileState)> = self
+            .tiles
+            .iter()
+            .filter_map(|(k, v)| {
+                if k.1 > self.y_limit || v != &TileState::Water(WaterState::Flood) {
+                    return None;
+                }
+
+                let down = (k.0, k.1 + 1);
+                match self.get_tile(down) {
+                    TileState::Clay | TileState::Water(WaterState::Rest) => {
+                        let left = (k.0 - 1, k.1);
+                        let right = (k.0 - 1, k.1);
+                        let mut add: Vec<((i32, i32), TileState)> = vec![];
+                        if self.get_tile(left) == &TileState::Empty {
+                            add.push((left, TileState::Water(WaterState::Flood)));
+                        }
+                        if self.get_tile(right) == &TileState::Empty {
+                            add.push((right, TileState::Water(WaterState::Flood)));
+                        }
+                        Some(add)
+                    }
+                    TileState::Empty => Some(vec![((down, TileState::Water(WaterState::Flood)))]),
+                    _ => None,
+                }
+            })
+            .flat_map(|i| i.into_iter())
+            .collect();
+
+        let count = to_add.len();
+        println!("adding: {}", count);
+        self.apply_changes(to_add);
+
+        count != 0
+    }
+
+    /// Applies the change of state to the tiles
+    pub fn apply_changes(&mut self, state_change: Vec<((i32, i32), TileState)>) {
+        state_change.into_iter().for_each(|i| {
+            let entry = self.tiles.entry(i.0).or_insert(TileState::Empty);
+            *entry = i.1;
+        });
+    }
+
+    /// Gets the tile state at given coords
+    pub fn get_tile(&self, coords: (i32, i32)) -> &TileState {
+        self.tiles.get(&coords).unwrap_or(&TileState::Empty)
+    }
+
+    /// Counts the number of Water tiles -- be it Flood or Rest
+    /// - 1 because we originally added the spring of Water as a Flood
+    pub fn count_water(&self) -> usize {
+        self.tiles
+            .values()
+            .filter(|&t| {
+                t == &TileState::Water(WaterState::Flood)
+                    || t == &TileState::Water(WaterState::Rest)
+            })
+            .count()
+            - 1
+    }
+}
+
+#[aoc(day17, part1)]
+/// Solves part one
+fn part_one(input: &[day17_ast::Info]) -> usize {
+    let mut world = World::new(input);
+    (0..).find(|x| {
+        println!("step {}", x);
+        !world.tick()
+    });
+    world.count_water()
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -146,5 +296,41 @@ y=13, x=498..504";
         assert_eq!(infos[1].rule_b.value, Value::Range(495, 501));
 
         // .... And so on.
+    }
+
+    #[test]
+    fn day17_get_coordinates() {
+        let info = day17_ast::Info {
+            rule_a: day17_ast::RulePart {
+                axis: 'x',
+                value: Value::Unique(5),
+            },
+            rule_b: day17_ast::RulePart {
+                axis: 'y',
+                value: Value::Range(5, 8),
+            },
+        };
+        assert_eq!(info.get_coordinates(), vec![(5, 5), (5, 6), (5, 7), (5, 8)]);
+    }
+
+    #[test]
+    fn day17_world() {
+        let infos = parse_input(INPUT);
+        let world = World::new(&infos);
+        assert_eq!(
+            world
+                .tiles
+                .values()
+                .filter(|&v| v == &TileState::Clay)
+                .count(),
+            34
+        );
+        assert_eq!(world.count_water(), 0);
+    }
+
+    #[test]
+    fn day17_part_one() {
+        let infos = parse_input(INPUT);
+        assert_eq!(part_one(&infos), 57);
     }
 }
