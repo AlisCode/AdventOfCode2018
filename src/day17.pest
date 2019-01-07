@@ -1,0 +1,7 @@
+WHITESPACE = _{ "\n" }
+number = @{ ASCII_DIGIT+ }
+value = @{ number ~ ".." ~ number | number }
+axis = { "x" | "y" }
+rule_part = { axis ~ "=" ~ value }
+info = { rule_part ~ ", " ~ rule_part }
+infos = { info* } 
